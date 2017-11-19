@@ -1,0 +1,262 @@
+/*  代码写的很粗糙，画面也很简单，没有仔细去修改整理，将就着先用用
+ *   内存占用太大UNO不够用，
+ *   用的是mega + LCD4884 JoystickShield 
+ */
+
+#include"U8glib.h"
+#include"MsTimer2.h"
+#define LCD_BACKLIGHT_PIN 7
+U8GLIB_PCD8544 u8g(2, 3, 5, 4, 6);          //根据自己屏幕芯片修改
+
+int  switchVoltage ;                         //按键
+int x_f , y_f;                            //食物坐标
+int food ;                                  //判断是否需要出现食物0表示没有食物需要产生新的1表示已经有了不需产生
+int life = 0 ;                           // 0 死亡 1 存活
+int x[70];                              //节点坐标
+int y[70];
+int dir, dir1   ;                       //记录方向信息；dir1是上一个信息 1上2右3下4左
+int score;                              //记录分数
+int Length;                             //长度
+int level_i = 1 , level_time , level_n ;   // level_i 初始等级  level_time 延时的时间  level_n 游戏中的时间
+int i, m, n, s ;                             //  S 是开始界面选择等级的
+
+void setup() {
+  pinMode(LCD_BACKLIGHT_PIN , OUTPUT);
+  digitalWrite(LCD_BACKLIGHT_PIN ,LOW);       //背光
+  MsTimer2::set(100, Control);              //定时器中断按键的扫描
+  MsTimer2::start();
+}
+
+void loop() {
+  if (life == 1 )
+    Game();
+  else
+    Menu();
+}
+
+void Init() {                  //初始化函数
+  x[0] = 20;                   //初始化方向和开始坐标
+  y[0] = 10;
+  dir = 2 , food = 0 , life = 1;
+  score = 0 ;
+  Length = 5;
+  x_f = 0 , y_f = 0;
+  for (i = 1; i < 200; i++)     //将坐标信息重置
+  {
+    x[i] = 0, y[i] = 0;
+  }
+}
+ 
+void Menu() {                  //开始界面
+  int a;
+  switch (s) {
+    case 2:
+      level_i += 1;
+      break;
+    case 4:
+      level_i -= 1;
+      break;
+    case 5:
+      Init();
+      break;
+  }
+  s = 0;
+  if ( level_i < 1)
+  {
+    level_i = 1;
+    a = 0 ;
+  }
+  else if ( level_i > 9)
+  {
+    level_i = 9;
+    a = 1 ;
+  }
+  else
+    a = 1;
+  u8g.firstPage();
+  do {
+    u8g.setFont(u8g_font_ncenB14);
+    u8g.drawStr( 7, 18, "SNAKE");
+    u8g.setFont(u8g_font_ncenB08);
+    u8g.drawStr(24 , 32 , "LEVEL");
+    u8g.setFont(u8g_font_helvB10);
+    u8g.drawStr(28, 48, ">");
+    u8g.drawStr(44, 48, "<");
+    u8g.setFont(u8g_font_helvB14);
+    u8g.setPrintPos(36 , 48);
+    u8g.print(level_i);
+    u8g.setColorIndex(a);
+    u8g.setFont(u8g_font_helvB08);
+    u8g.setPrintPos(20, 48);
+    u8g.print(level_i - 1);
+    u8g.setColorIndex(1);
+    u8g.setFont(u8g_font_helvB08);
+    u8g.setPrintPos(55, 48);
+    u8g.print(level_i + 1);
+  } while (u8g.nextPage());
+  delay(500);
+}
+
+void Game() {
+  u8g.firstPage();
+  do {
+    u8g.drawFrame(0, 0, 70, 48);            //边框
+    draw(x_f, y_f);
+    for ( n = 0; n <= Length; n++) {        //绘制蛇身
+      draw(x[n], y[n]);
+    }
+    Score( 72 , 46 , score);                         //显示分数
+    Score( 72 , 20 , level_n);                         //显示等级
+  } while (u8g.nextPage());
+  Play();
+  Level();
+  delay(level_time);
+}
+
+void Control() {                         //这里要注意当前一个动作是向上的时候是不能返回向下的指令的
+  dir1 = dir;                    
+  switchVoltage = analogRead(0);
+  if ( switchVoltage > 600 && switchVoltage < 800 ) {            //上
+    s = 1 ;
+    if ( dir1 == 4 || dir1 == 2)
+    {
+      dir = 1;
+    }
+    else
+      dir = dir1;
+  }
+
+  else if ( switchVoltage > 180 && switchVoltage < 400 ) {           //下
+    s = 3 ;
+    if ( dir1 == 4 || dir1 == 2)
+    {
+      dir = 3;
+    }
+    else
+      dir = dir1;
+  }
+
+  else if ( switchVoltage == 0 ) {                                    //左
+    s = 4;
+    if ( dir1 == 1 || dir1 == 3)
+    {
+      dir = 4;
+    }
+    else
+      dir = dir1;
+  }
+
+  else if ( switchVoltage > 400 && switchVoltage < 600 ) {           //右
+    s = 2;
+    if ( dir1 == 1 || dir1 == 3)
+    {
+      dir = 2;
+    }
+    else
+      dir = dir1;
+  }
+
+  else if ( switchVoltage > 0 && switchVoltage < 180 )
+    s = 5;
+}
+
+void draw(int x, int y ) {
+  u8g.drawBox(x, y, 2, 2);
+}
+
+void Play() {
+
+  if (food == 0)                           //产生食物
+  {
+    x_f = random(1, 34) * 2 ;
+    y_f = random(1, 23) * 2;
+    food = 1;
+  }
+
+  if ((x[0] == x_f) && (y[0] == y_f))     //判断食物是否被吃
+  {
+    x[0] = x_f, y[0] = y_f;
+    food = 0;
+    score += 1;
+    Length += 1;
+  }
+
+  for (i = Length - 1; i > 0; i--)         //移动
+  {
+    x[i] = x[i - 1];
+    y[i] = y[i - 1];
+  }
+
+  switch (dir) {
+    case 1:
+      y[0] -= 2;
+      if (y[0] < 0) {
+        y[0] = 48 ;
+      }
+      break;
+    case 2:
+      x[0] += 2;
+      if (x[0] >= 70) {
+        x[0] = 0 ;
+      }
+      break;
+    case 3:
+      y[0] += 2;
+      if ( y[0] >= 48 ) {
+        y[0] = 0 ;
+      }
+      break;
+    case 4:
+      x[0] -= 2;
+      if ( x[0] < 0) {
+        x[0] = 68 ;
+      }
+      break;
+  }
+
+  for (m = 3; m < Length; m++) {           //判断是否撞到自己
+    if ((x[m] == x[0]) && (y[m] == y[0])) {
+      Gameover(0, 1, 500);
+      Gameover(1, 0, 200);
+      Gameover(0, 1, 500);
+      Gameover(1, 0, 200);
+      Gameover(0, 1, 600);
+      break;
+    }
+  }
+}
+
+void Gameover(int a , int b , int c) {
+  u8g.firstPage();
+  do {
+    u8g.setColorIndex(a);
+    u8g.drawBox(0, 0, 84, 48);
+    u8g.setColorIndex(b);
+    u8g.setFont(u8g_font_courB10);
+    u8g.drawStr(7, 15, "Gameover");
+    u8g.setFont(u8g_font_ncenR08);
+    u8g.drawStr(18, 28, "Your Score");
+    u8g.setFont(u8g_font_fub11);
+    u8g.setPrintPos(30, 45);
+    u8g.print(score);
+  } while (u8g.nextPage());
+  delay(c);
+  life = 0;
+}
+
+void Level() {                            
+  level_n = level_i + score / 5;
+  if ( level_n > 10)
+    level_n = 10;
+  level_time = 500 / (level_n);
+}
+
+void Score( int x , int y , int s) {
+  u8g.setFont(u8g_font_4x6);
+  u8g.drawStr(71, 36, "SCO");
+  u8g.drawStr(71, 10, "LV");
+  u8g.setFont(u8g_font_04b_03b);
+  u8g.setPrintPos(x, y);
+  u8g.print(s);
+}
+
