@@ -1,0 +1,302 @@
+#include"U8glib.h"
+#include"MsTimer2.h"
+#define LCD_BACKLIGHT_PIN 7
+U8GLIB_PCD8544 u8g(2, 3, 5, 4, 6);
+
+int  switchVoltage , flag,life;                      //按键
+int  number[4][4] ;
+long time_begin,time_over;
+void setup() {
+  pinMode(LCD_BACKLIGHT_PIN , OUTPUT);
+  digitalWrite(LCD_BACKLIGHT_PIN , LOW);     //默认关闭背光
+  randomSeed(analogRead(1));
+  MsTimer2::set(200, Control);              //定时器中断按键的扫描
+  MsTimer2::start();
+  Serial.begin(9600);
+  for (int a = 0; a < 2; a++)
+  {
+    int x = random(0, 3);
+    int y = random(0, 3);
+    if (number[x][y] == 0)
+      number[x][y] = 2;
+  }
+  life = 1;
+  u8g.firstPage();
+  do {
+    u8g.setFont(u8g_font_timB14);
+    u8g.setPrintPos(23, 20);
+    u8g.print(2);
+    u8g.setFont(u8g_font_helvR10);
+    u8g.setPrintPos(31, 17);
+    u8g.print(0);
+    u8g.setFont(u8g_font_fub11);
+    u8g.setPrintPos(37, 22);
+    u8g.print(4);
+    u8g.setFont(u8g_font_ncenR14);
+    u8g.setPrintPos(46, 18);
+    u8g.print(8);
+    u8g.setFont(u8g_font_6x10);
+    u8g.drawStr(4, 35, "Press the key");
+    u8g.drawStr(20, 45, "to start");
+  } while (u8g.nextPage());
+  while (switchVoltage < 0 || switchVoltage > 180)
+    switchVoltage = analogRead(0);
+  time_begin=millis();
+}
+
+void loop()
+{
+  int x_b = 0, y_b = 0, n;
+  if (life == 1)
+  {
+    u8g.firstPage();
+    do {
+      u8g.setFont(u8g_font_04b_03b);
+      for (int i = 0; i < 4; i++)
+        for (int m = 0; m < 4; m++)
+        {
+          u8g.drawRFrame(x_b + 20 * i, y_b + 12 * m, 20, 12, 2);
+          if (number[i][m] != 0)
+          {
+            if (number[i][m] / 1000 > 0)
+              n = 4;
+            else if (number[i][m] / 100 > 0)
+              n = 3;
+            else if (number[i][m] / 10 > 0)
+              n = 2;
+            else
+              n = 1;
+            u8g.setPrintPos(x_b + 20 * i + 9 - n * 2, y_b + 12 * (m + 1) - 3);
+            u8g.print(number[i][m]);
+          }
+        }
+    } while (u8g.nextPage());
+    if (flag == 1)
+    {
+      for (int a = 0; a < 2; a++)
+      {
+        int x = random(0, 3);
+        int y = random(0, 3);
+        if (number[x][y] == 0)
+          number[x][y] = 2;
+      }
+      flag = 0;
+    }
+    time_over=millis();
+  }
+  for (int i = 0; i < 4; i++)
+    for (int m = 0; m < 4; m++)
+    {
+      if (number[i][m] == 2048)
+      {
+        u8g.firstPage();
+        do {
+          u8g.drawRFrame(10, 10, 60, 28, 4);
+          u8g.setFont(u8g_font_6x13);
+          u8g.drawStr(15, 25, "YOUR WIN");
+          if (((time_over-time_begin)/1000)/ 1000 > 0)
+              n = 4;
+            else if (number[i][m] / 100 > 0)
+              n = 3;
+            else if (number[i][m] / 10 > 0)
+              n = 2;
+            else
+              n = 1;
+          u8g.setPrintPos(42-n*3,35);
+          u8g.print((time_over-time_begin)/1000);
+        } while (u8g.nextPage());
+        life=0;
+      }
+    }
+}
+
+void Control() {
+  switchVoltage = analogRead(0);
+  if ( switchVoltage > 600 && switchVoltage < 800 )       //上
+  {
+    //移动数字
+    for (int i = 0; i < 4; i++)
+    {
+      for (int m = 0; m < 4; m++)
+      {
+        if (number[i][m] == 0);
+        flag = 1;
+      }
+      //使用冒泡排序将0移到最后
+      for (int j = 0; j < 3; j++)
+      {
+        for (int m = 0; m < 3; m++)
+        {
+          if (number[i][m] == 0)
+          {
+            number[i][m] = number[i][m + 1];
+            number[i][m + 1] = 0;
+          }
+        }
+      }
+      //相邻相同的数字相加
+      for (int m = 0; m < 3; m++)
+      {
+        if (number[i][m] == number[i][m + 1])
+        {
+          number[i][m] = number[i][m + 1] + number[i][m];
+          number[i][m + 1] = 0;
+          flag = 1;
+        }
+      }
+      //再次使用冒泡
+      for (int j = 0; j < 3; j++)
+      {
+        for (int m = 0; m < 3; m++)
+        {
+          if (number[i][m] == 0)
+          {
+            number[i][m] = number[i][m + 1];
+            number[i][m + 1] = 0;
+          }
+        }
+      }
+    }
+  }
+
+  if ( switchVoltage > 180 && switchVoltage < 400 )       //下
+  {
+    for (int i = 0; i < 4; i++)
+    {
+      for (int m = 0; m < 4; m++)
+      {
+        if (number[i][m] == 0);
+        flag = 1;
+      }
+      //使用冒泡排序将0移到最前
+      for (int j = 0; j < 3; j++)
+      {
+        for (int m = 3; m > 0; m--)
+        {
+          if (number[i][m] == 0)
+          {
+            number[i][m] = number[i][m - 1];
+            number[i][m - 1] = 0;
+          }
+        }
+      }
+      //再次相邻相同的数字相加
+      for (int m = 3; m > 0; m--)
+      {
+        if (number[i][m] == number[i][m - 1])
+        {
+          number[i][m] = number[i][m - 1] + number[i][m];
+          number[i][m - 1] = 0;
+          flag = 1;
+        }
+      }
+      for (int j = 0; j < 3; j++)
+      {
+        for (int m = 3; m > 0; m--)
+        {
+          if (number[i][m] == 0)
+          {
+            number[i][m] = number[i][m - 1];
+            number[i][m - 1] = 0;
+          }
+        }
+      }
+    }
+  }
+
+  if ( switchVoltage == 0 )                               //左
+  {
+    for (int m = 0; m < 4; m++)
+    {
+      for (int i = 0; i < 4; i++)
+      {
+        if (number[i][m] == 0);
+        flag = 1;
+      }
+      //使用冒泡排序将0移到最后
+      for (int j = 0; j < 3; j++)
+      {
+        for (int i = 0; i < 3; i++)
+        {
+          if (number[i][m] == 0)
+          {
+            number[i][m] = number[i + 1][m ];
+            number[i + 1][m ] = 0;
+          }
+        }
+      }
+      //相邻相同的数字相加
+      for (int i = 0; i < 3; i++)
+      {
+        if (number[i][m] == number[i + 1][m])
+        {
+          number[i][m] = number[i + 1][m] + number[i][m];
+          number[i + 1][m ] = 0;
+          flag = 1;
+        }
+      }
+      //再次使用冒泡
+      for (int j = 0; j < 3; j++)
+      {
+        for (int i = 0; i < 3; i++)
+        {
+          if (number[i][m] == 0)
+          {
+            number[i][m] = number[i + 1][m ];
+            number[i + 1][m ] = 0;
+          }
+        }
+      }
+    }
+  }
+
+  if ( switchVoltage > 400 && switchVoltage < 600 )       //右
+  {
+
+    for (int m = 0; m < 4; m++)
+    {
+      for (int i = 0; i < 4; i++)
+      {
+        if (number[i][m] == 0);
+        flag = 1;
+      }
+      //使用冒泡排序将0移到最后
+      for (int j = 0; j < 3; j++)
+      {
+        for (int i = 3; i > 0; i--)
+        {
+          if (number[i][m] == 0)
+          {
+            number[i][m] = number[i - 1][m ];
+            number[i - 1][m ] = 0;
+          }
+        }
+      }
+      //相邻相同的数字相加
+      for (int i = 3; i > 0; i--)
+      {
+        if (number[i][m] == number[i - 1][m])
+        {
+          number[i][m] = number[i - 1][m] + number[i][m];
+          number[i - 1][m ] = 0;
+          flag = 1;
+        }
+      }
+      //再次使用冒泡
+      for (int j = 0; j < 3; j++)
+      {
+        for (int i = 3; i > 0; i--)
+        {
+          if (number[i][m] == 0)
+          {
+            number[i][m] = number[i - 1][m ];
+            number[i - 1][m ] = 0;
+          }
+        }
+      }
+    }
+  }
+  //   if ( switchVoltage > 0 && switchVoltage < 180 )
+}
+
+
